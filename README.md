@@ -1,0 +1,2 @@
+# Adaptive-Network-Intrusion-Detection-and-Prevention-System-Using-Deep-Packet-Inspection-
+This project presents an Adaptive Network Intrusion Detection and Prevention System (ANIDPS) that employs Deep Packet Inspection (DPI) combined with a Stateful Rule Engine to analyze network traffic in real time. The system captures live packets using Scapy with Npcap, dissects them at the protocol level (TCP, IP, ICMP).
