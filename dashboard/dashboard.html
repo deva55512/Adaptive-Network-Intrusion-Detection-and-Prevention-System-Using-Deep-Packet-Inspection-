@@ -1,0 +1,447 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>IDS / IPS Monitor</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Courier New',monospace;background:#dadeece0;color:#c9d1d9;min-height:100vh;display:flex;flex-direction:column}
+  :root{
+    --bg1:#0f1117;--bg2:#161b22;--bg3:#21262d;--bg4:#30363d;
+    --border:#30363d;--border2:#484f58;
+    --text1:#e6edf3;--text2:#8b949e;--text3:#6e7681;
+    --blue:#58a6ff;--green:#3fb950;--amber:#d29922;--red:#f85149;--purple:#bc8cff;
+    --bg-red:#3d1a1a;--bg-amber:#2d2008;--bg-green:#0d2b1a;--bg-blue:#0c1d36;
+  }
+  .app{display:flex;flex-direction:column;height:100vh;overflow:hidden}
+  .topbar{display:flex;align-items:center;justify-content:space-between;padding:10px 18px;background:var(--bg2);border-bottom:1px solid var(--border);flex-shrink:0}
+  .brand{font-size:14px;font-weight:600;color:var(--text1);display:flex;align-items:center;gap:8px}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:var(--green);animation:blink 1.2s ease-in-out infinite}
+  @keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+  .chips{display:flex;gap:6px}
+  .chip{font-size:11px;padding:3px 10px;border-radius:4px;font-weight:500;border:1px solid}
+  .chip-red{background:var(--bg-red);color:var(--red);border-color:var(--red)}
+  .chip-amber{background:var(--bg-amber);color:var(--amber);border-color:var(--amber)}
+  .chip-green{background:var(--bg-green);color:var(--green);border-color:var(--green)}
+  .chip-blue{background:var(--bg-blue);color:var(--blue);border-color:var(--blue)}
+  .body{display:grid;grid-template-columns:180px 1fr;flex:1;overflow:hidden}
+  .sidebar{background:var(--bg2);border-right:1px solid var(--border);padding:10px 0;display:flex;flex-direction:column;gap:1px;overflow-y:auto}
+  .nav-sec{font-size:10px;padding:10px 14px 4px;color:var(--text3);text-transform:uppercase;letter-spacing:.07em}
+  .nav-item{display:flex;align-items:center;justify-content:space-between;padding:7px 14px;font-size:12px;color:var(--text2);cursor:pointer;border-left:2px solid transparent;transition:all .12s;user-select:none}
+  .nav-item:hover{background:var(--bg3);color:var(--text1)}
+  .nav-item.active{background:var(--bg3);color:var(--text1);border-left-color:var(--blue)}
+  .nav-badge{font-size:10px;padding:1px 6px;border-radius:8px;background:var(--bg-red);color:var(--red);font-weight:600}
+  .main{display:flex;flex-direction:column;gap:10px;padding:14px;overflow-y:auto;background:var(--bg1)}
+  .metrics{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+  .mcard{background:var(--bg2);border-radius:8px;padding:12px 14px;border:1px solid var(--border)}
+  .mlabel{font-size:10px;color:var(--text3);margin-bottom:5px;text-transform:uppercase;letter-spacing:.05em}
+  .mval{font-size:22px;font-weight:600;line-height:1.1}
+  .mval.red{color:var(--red)}.mval.amber{color:var(--amber)}.mval.green{color:var(--green)}.mval.blue{color:var(--blue)}
+  .msub{font-size:10px;color:var(--text3);margin-top:3px}
+  .panels{display:grid;grid-template-columns:1fr 230px;gap:10px}
+  .panel{border:1px solid var(--border);border-radius:8px;overflow:hidden;background:var(--bg2)}
+  .ph{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--border);background:var(--bg3)}
+  .ph-title{font-size:12px;font-weight:500;color:var(--text1)}
+  .ph-ctrl{font-size:11px;padding:3px 8px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer}
+  .ph-ctrl:hover{background:var(--bg4);color:var(--text1)}
+  .etable{width:100%;font-size:11px;border-collapse:collapse;table-layout:fixed}
+  .etable th{padding:6px 10px;text-align:left;font-size:10px;color:var(--text3);background:var(--bg3);border-bottom:1px solid var(--border);font-weight:500;letter-spacing:.04em}
+  .etable td{padding:6px 10px;border-bottom:1px solid var(--border);color:var(--text2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .etable tr:last-child td{border-bottom:none}
+  .etable tr.flash td{animation:rowflash .7s ease-out}
+  @keyframes rowflash{0%{background:rgba(88,166,255,.12)}100%{background:transparent}}
+  .sev{font-size:9px;font-weight:600;padding:2px 6px;border-radius:3px;text-transform:uppercase}
+  .s-crit{background:var(--bg-red);color:var(--red)}
+  .s-high{background:var(--bg-amber);color:var(--amber)}
+  .s-med{background:var(--bg-blue);color:var(--blue)}
+  .s-low{background:var(--bg3);color:var(--text3);border:1px solid var(--border)}
+  .act-btn{font-size:9px;padding:2px 7px;border-radius:3px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer}
+  .act-btn.block{background:var(--bg-red);color:var(--red);border-color:var(--red)}
+  .act-btn.allow{background:var(--bg-green);color:var(--green);border-color:var(--green)}
+  .act-btn:hover{opacity:.8}
+  .rule-row{display:flex;align-items:center;justify-content:space-between;padding:9px 14px;border-bottom:1px solid var(--border);font-size:12px;color:var(--text2)}
+  .rule-row:last-child{border-bottom:none}
+  .rule-name{color:var(--text1);font-weight:500;font-size:12px}
+  .rule-sub{font-size:10px;color:var(--text3);margin-top:2px}
+  .toggle{position:relative;width:30px;height:17px;cursor:pointer}
+  .toggle input{opacity:0;width:0;height:0;position:absolute}
+  .tslider{position:absolute;inset:0;background:var(--border2);border-radius:9px;transition:.2s}
+  .tslider:before{content:'';position:absolute;width:13px;height:13px;left:2px;bottom:2px;background:#fff;border-radius:50%;transition:.2s}
+  .toggle input:checked + .tslider{background:var(--green)}
+  .toggle input:checked + .tslider:before{transform:translateX(13px)}
+  .sparkbar{display:flex;align-items:flex-end;gap:2px;height:40px;padding:6px 14px 8px}
+  .bar{flex:1;background:var(--blue);border-radius:2px 2px 0 0;opacity:.7;transition:height .3s}
+  .footer-bar{display:flex;align-items:center;justify-content:space-between;padding:8px 16px;border-top:1px solid var(--border);background:var(--bg2);font-size:11px;color:var(--text3);flex-shrink:0}
+  .mode-btn{font-size:11px;padding:3px 12px;border-radius:4px;border:1px solid var(--border2);background:transparent;color:var(--text2);cursor:pointer;transition:all .12s}
+  .mode-btn:hover{background:var(--bg3);color:var(--text1)}
+  .mode-btn.active{background:var(--bg-blue);color:var(--blue);border-color:var(--blue)}
+  .view{display:none}.view.active{display:block}
+  canvas{display:block}
+  .cfg-row{display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border)}
+  .cfg-row:last-child{border-bottom:none}
+  .cfg-name{font-size:13px;font-weight:500;color:var(--text1)}
+  .cfg-sub{font-size:11px;color:var(--text3);margin-top:2px}
+  .bar-fill{height:100%;border-radius:2px;transition:width .4s}
+  .bar-fill.red{background:var(--red)}.bar-fill.amber{background:var(--amber)}.bar-fill.blue{background:var(--blue)}.bar-fill.green{background:var(--green)}
+  ::-webkit-scrollbar{width:5px;height:5px}
+  ::-webkit-scrollbar-track{background:var(--bg2)}
+  ::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="live-dot"></div>
+      IDS / IPS Monitor
+    </div>
+    <div class="chips">
+      <span class="chip chip-red" id="chip-blocked">0 blocked</span>
+      <span class="chip chip-amber" id="chip-alerts">0 alerts</span>
+      <span class="chip chip-green">eth0 online</span>
+      <span class="chip chip-blue" id="chip-pps">0 pps</span>
+    </div>
+  </div>
+
+  <div class="body">
+    <div class="sidebar">
+      <div class="nav-sec">Monitor</div>
+      <div class="nav-item active" onclick="setView('events',this)">Live events <span class="nav-badge" id="nb-events">0</span></div>
+      <div class="nav-item" onclick="setView('traffic',this)">Traffic graph</div>
+      <div class="nav-item" onclick="setView('blocked',this)">Blocked IPs <span class="nav-badge" id="nb-blocked">0</span></div>
+      <div class="nav-sec">Rules</div>
+      <div class="nav-item" onclick="setView('rules',this)">Detection rules</div>
+      <div class="nav-item" onclick="setView('sigs',this)">Signatures</div>
+      <div class="nav-sec">Settings</div>
+      <div class="nav-item" onclick="setView('config',this)">Mode &amp; config</div>
+    </div>
+
+    <div class="main">
+      <div class="metrics">
+        <div class="mcard"><div class="mlabel">Total Events</div><div class="mval blue" id="m-total">0</div><div class="msub">this session</div></div>
+        <div class="mcard"><div class="mlabel">Blocked</div><div class="mval red" id="m-blocked">0</div><div class="msub">IPS active</div></div>
+        <div class="mcard"><div class="mlabel">Alerts</div><div class="mval amber" id="m-alerts">0</div><div class="msub">unreviewed</div></div>
+        <div class="mcard"><div class="mlabel">Clean</div><div class="mval green" id="m-clean">0</div><div class="msub">allowed</div></div>
+      </div>
+
+      <div id="view-events" class="view active">
+        <div class="panels">
+          <div class="panel">
+            <div class="ph"><span class="ph-title">Live event feed</span><button class="ph-ctrl" onclick="clearEvents()">clear</button></div>
+            <div style="overflow-x:auto">
+              <table class="etable">
+                <thead><tr>
+                  <th style="width:72px">Time</th>
+                  <th style="width:108px">Src IP</th>
+                  <th style="width:96px">Dst IP</th>
+                  <th style="width:44px">Port</th>
+                  <th style="width:52px">Sev</th>
+                  <th style="width:130px">Signature</th>
+                  <th style="width:72px">Action</th>
+                </tr></thead>
+                <tbody id="event-tbody"></tbody>
+              </table>
+            </div>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:10px">
+            <div class="panel">
+              <div class="ph"><span class="ph-title">Threat breakdown</span></div>
+              <div style="padding:10px 12px;display:flex;flex-direction:column;gap:7px" id="threat-breakdown"></div>
+            </div>
+            <div class="panel">
+              <div class="ph"><span class="ph-title">Traffic sparkline</span></div>
+              <div class="sparkbar" id="sparkbar"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="view-traffic" class="view">
+        <div class="panel">
+          <div class="ph"><span class="ph-title">Traffic — packets / second</span></div>
+          <div style="padding:12px"><canvas id="traffic-canvas" style="width:100%;height:160px"></canvas></div>
+        </div>
+      </div>
+
+      <div id="view-blocked" class="view">
+        <div class="panel">
+          <div class="ph"><span class="ph-title">Blocked IP addresses</span><button class="ph-ctrl" onclick="clearBlocked()">clear all</button></div>
+          <table class="etable">
+            <thead><tr>
+              <th style="width:130px">IP Address</th>
+              <th style="width:50px">Hits</th>
+              <th style="width:150px">Last seen</th>
+              <th style="width:130px">Reason</th>
+              <th style="width:80px">Action</th>
+            </tr></thead>
+            <tbody id="blocked-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="view-rules" class="view">
+        <div class="panel">
+          <div class="ph"><span class="ph-title">Detection rules</span></div>
+          <div id="rules-list"></div>
+        </div>
+      </div>
+
+      <div id="view-sigs" class="view">
+        <div class="panel">
+          <div class="ph"><span class="ph-title">Signature library</span></div>
+          <table class="etable">
+            <thead><tr>
+              <th style="width:60px">SID</th>
+              <th style="width:200px">Name</th>
+              <th style="width:70px">Severity</th>
+              <th style="width:90px">Category</th>
+              <th style="width:70px">Matches</th>
+            </tr></thead>
+            <tbody id="sigs-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="view-config" class="view">
+        <div class="panel">
+          <div class="ph"><span class="ph-title">System mode &amp; config</span></div>
+          <div class="cfg-row"><div><div class="cfg-name">IPS mode (active blocking)</div><div class="cfg-sub">Automatically block matched traffic</div></div><label class="toggle"><input type="checkbox" id="ips-mode" checked><span class="tslider"></span></label></div>
+          <div class="cfg-row"><div><div class="cfg-name">Alert on suspicious ports</div><div class="cfg-sub">Flag non-standard destination ports</div></div><label class="toggle"><input type="checkbox" id="port-alert" checked><span class="tslider"></span></label></div>
+          <div class="cfg-row"><div><div class="cfg-name">GeoIP filtering</div><div class="cfg-sub">Block traffic from high-risk regions</div></div><label class="toggle"><input type="checkbox" id="geo-filter"><span class="tslider"></span></label></div>
+          <div class="cfg-row"><div><div class="cfg-name">Log to SIEM</div><div class="cfg-sub">Forward events via syslog</div></div><label class="toggle"><input type="checkbox" id="siem-log" checked><span class="tslider"></span></label></div>
+          <div class="cfg-row"><div><div class="cfg-name">Deep packet inspection</div><div class="cfg-sub">Inspect payload content (higher CPU)</div></div><label class="toggle"><input type="checkbox" id="dpi"><span class="tslider"></span></label></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-bar">
+    <span id="footer-time">--:--:--</span>
+    <div style="display:flex;gap:4px">
+      <button class="mode-btn active" id="btn-ids" onclick="setMode('ids')">IDS</button>
+      <button class="mode-btn active" id="btn-ips" onclick="setMode('ips')">IPS</button>
+    </div>
+    <span id="footer-rule-count">0 rules loaded</span>
+  </div>
+</div>
+
+<script>
+const sigs=[
+  {sid:1001,name:'SQL injection attempt',sev:'crit',cat:'web',matches:0},
+  {sid:1002,name:'XSS payload detected',sev:'high',cat:'web',matches:0},
+  {sid:1003,name:'Port scan detected',sev:'med',cat:'recon',matches:0},
+  {sid:1004,name:'Brute force SSH',sev:'high',cat:'auth',matches:0},
+  {sid:1005,name:'ICMP flood',sev:'med',cat:'dos',matches:0},
+  {sid:1006,name:'DNS tunneling',sev:'high',cat:'exfil',matches:0},
+  {sid:1007,name:'Suspicious user-agent',sev:'low',cat:'web',matches:0},
+  {sid:1008,name:'SMB exploit attempt',sev:'crit',cat:'exploit',matches:0},
+  {sid:1009,name:'Tor exit node traffic',sev:'med',cat:'anon',matches:0},
+  {sid:1010,name:'Large data exfiltration',sev:'crit',cat:'exfil',matches:0},
+];
+const rules=[
+  {name:'Inbound port scan',proto:'TCP',action:'alert',enabled:true},
+  {name:'SSH brute force',proto:'TCP/22',action:'block',enabled:true},
+  {name:'HTTP flood',proto:'HTTP',action:'block',enabled:true},
+  {name:'ICMP ping sweep',proto:'ICMP',action:'alert',enabled:false},
+  {name:'DNS anomaly',proto:'UDP/53',action:'alert',enabled:true},
+  {name:'Outbound C2',proto:'TCP',action:'block',enabled:true},
+  {name:'FTP anonymous login',proto:'TCP/21',action:'alert',enabled:false},
+  {name:'Telnet access',proto:'TCP/23',action:'block',enabled:true},
+];
+const srcPrefixes=['192.168.1.','10.0.0.','172.16.0.','45.33.32.','185.220.101.','94.102.49.','198.51.100.'];
+const dstPrefixes=['10.10.1.','192.168.10.','172.31.0.'];
+function rip(arr){return arr[Math.floor(Math.random()*arr.length)]+Math.floor(Math.random()*254+1)}
+function rport(){const p=[22,80,443,3389,8080,4444,6666,23,21,3306,5432,27017];return p[Math.floor(Math.random()*p.length)]}
+function ts(){return new Date().toLocaleTimeString()}
+const counts={total:0,blocked:0,alerts:0,clean:0};
+const blockedIPs={};
+let sparkData=Array(20).fill(0);
+let pps=0;
+let currentView='events';
+let nbEvents=0;
+function rndSig(){return sigs[Math.floor(Math.random()*sigs.length)]}
+function sevClass(s){return s==='crit'?'s-crit':s==='high'?'s-high':s==='med'?'s-med':'s-low'}
+
+function setView(v,el){
+  document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+  document.getElementById('view-'+v).classList.add('active');
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  if(el)el.classList.add('active');
+  currentView=v;
+  if(v==='rules')renderRules();
+  if(v==='sigs')renderSigs();
+  if(v==='traffic')drawTraffic();
+  if(v==='blocked')renderBlocked();
+}
+
+function renderRules(){
+  document.getElementById('rules-list').innerHTML=rules.map((r,i)=>`
+    <div class="rule-row">
+      <div>
+        <div class="rule-name">${r.name}</div>
+        <div class="rule-sub">${r.proto} &middot; action: <span style="color:${r.action==='block'?'var(--red)':'var(--amber)'}">${r.action}</span></div>
+      </div>
+      <label class="toggle"><input type="checkbox" ${r.enabled?'checked':''} onchange="rules[${i}].enabled=this.checked;updateFooter()"><span class="tslider"></span></label>
+    </div>`).join('');
+  updateFooter();
+}
+
+function renderSigs(){
+  document.getElementById('sigs-tbody').innerHTML=sigs.map(s=>`
+    <tr>
+      <td style="color:var(--text3)">${s.sid}</td>
+      <td style="color:var(--text1)">${s.name}</td>
+      <td><span class="sev ${sevClass(s.sev)}">${s.sev}</span></td>
+      <td>${s.cat}</td>
+      <td style="color:var(--blue)">${s.matches}</td>
+    </tr>`).join('');
+}
+
+function addEvent(){
+  const sig=rndSig();
+  const src=rip(srcPrefixes),dst=rip(dstPrefixes),port=rport();
+  const ipsOn=document.getElementById('ips-mode').checked;
+  const action=ipsOn&&(sig.sev==='crit'||sig.sev==='high')?'block':'alert';
+  sig.matches++;
+  counts.total++;
+  if(action==='block'){counts.blocked++;nbEvents++;}
+  else{counts.alerts++;nbEvents++;}
+  if(Math.random()>.35)counts.clean++;
+  pps=Math.floor(Math.random()*5000+400);
+  if(action==='block'){
+    if(!blockedIPs[src])blockedIPs[src]={count:0,reason:sig.name,time:ts()};
+    blockedIPs[src].count++;
+    blockedIPs[src].time=ts();
+  }
+  updateMetrics();
+  if(currentView==='events')addRow(ts(),src,dst,port,sig,action);
+  if(currentView==='blocked')renderBlocked();
+  if(currentView==='traffic')drawTraffic();
+  if(currentView==='sigs')renderSigs();
+  updateSparkline();
+  updateBreakdown();
+}
+
+function addRow(t,src,dst,port,sig,action){
+  const tb=document.getElementById('event-tbody');
+  const tr=document.createElement('tr');
+  tr.className='flash';
+  tr.innerHTML=`<td style="color:var(--text3)">${t}</td>
+    <td style="color:var(--blue)">${src}</td>
+    <td>${dst}</td>
+    <td style="color:var(--purple)">${port}</td>
+    <td><span class="sev ${sevClass(sig.sev)}">${sig.sev}</span></td>
+    <td title="${sig.name}" style="color:var(--text1)">${sig.name.slice(0,20)}</td>
+    <td><button class="act-btn ${action}" onclick="this.textContent=this.textContent==='block'?'allow':'block';this.className='act-btn '+(this.textContent)">${action}</button></td>`;
+  tb.prepend(tr);
+  while(tb.rows.length>40)tb.deleteRow(tb.rows.length-1);
+  nbEvents=Math.max(0,nbEvents-1);
+  document.getElementById('nb-events').textContent=nbEvents;
+}
+
+function updateMetrics(){
+  document.getElementById('m-total').textContent=counts.total.toLocaleString();
+  document.getElementById('m-blocked').textContent=counts.blocked.toLocaleString();
+  document.getElementById('m-alerts').textContent=counts.alerts.toLocaleString();
+  document.getElementById('m-clean').textContent=counts.clean.toLocaleString();
+  document.getElementById('chip-blocked').textContent=counts.blocked.toLocaleString()+' blocked';
+  document.getElementById('chip-alerts').textContent=counts.alerts.toLocaleString()+' alerts';
+  document.getElementById('chip-pps').textContent=pps.toLocaleString()+' pps';
+  document.getElementById('nb-blocked').textContent=Object.keys(blockedIPs).length;
+}
+
+function renderBlocked(){
+  const entries=Object.entries(blockedIPs).slice(0,30);
+  document.getElementById('blocked-tbody').innerHTML=entries.length?entries.map(([ip,d])=>`
+    <tr>
+      <td style="color:var(--red)">${ip}</td>
+      <td style="color:var(--amber)">${d.count}</td>
+      <td style="color:var(--text3)">${d.time}</td>
+      <td title="${d.reason}">${d.reason.slice(0,18)}</td>
+      <td><button class="act-btn allow" onclick="unblockIP('${ip}',this.closest('tr'))">unblock</button></td>
+    </tr>`).join('')
+    :'<tr><td colspan="5" style="padding:14px;color:var(--text3);text-align:center">No blocked IPs yet</td></tr>';
+}
+
+function unblockIP(ip,row){delete blockedIPs[ip];row.remove();document.getElementById('nb-blocked').textContent=Object.keys(blockedIPs).length;}
+function clearEvents(){document.getElementById('event-tbody').innerHTML='';nbEvents=0;document.getElementById('nb-events').textContent=0;}
+function clearBlocked(){Object.keys(blockedIPs).forEach(k=>delete blockedIPs[k]);renderBlocked();document.getElementById('nb-blocked').textContent=0;}
+
+function updateSparkline(){
+  sparkData.push(Math.floor(Math.random()*90+10));
+  if(sparkData.length>20)sparkData.shift();
+  const max=Math.max(...sparkData,1);
+  document.getElementById('sparkbar').innerHTML=sparkData.map(v=>`<div class="bar" style="height:${Math.round(v/max*100)}%"></div>`).join('');
+}
+
+let trafficPoints=Array(50).fill(0);
+function drawTraffic(){
+  trafficPoints.push(Math.floor(Math.random()*4000+200));
+  if(trafficPoints.length>50)trafficPoints.shift();
+  const canvas=document.getElementById('traffic-canvas');
+  if(!canvas)return;
+  const rect=canvas.getBoundingClientRect();
+  const w=rect.width||600,h=150;
+  canvas.width=w;canvas.height=h;
+  const ctx=canvas.getContext('2d');
+  ctx.clearRect(0,0,w,h);
+  const max=Math.max(...trafficPoints,1);
+  const pts=trafficPoints.map((v,i)=>({x:i/(trafficPoints.length-1)*w,y:h-v/max*(h-16)-8}));
+  ctx.beginPath();ctx.moveTo(pts[0].x,pts[0].y);
+  pts.slice(1).forEach(p=>ctx.lineTo(p.x,p.y));
+  ctx.strokeStyle='#58a6ff';ctx.lineWidth=1.5;ctx.stroke();
+  ctx.lineTo(w,h);ctx.lineTo(0,h);ctx.closePath();
+  ctx.fillStyle='rgba(88,166,255,.08)';ctx.fill();
+  ctx.strokeStyle='rgba(255,255,255,.04)';ctx.lineWidth=0.5;
+  [0.25,0.5,0.75].forEach(t=>{const y=h*t;ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();});
+}
+
+const threatCounts={crit:0,high:0,med:0,low:0};
+function updateBreakdown(){
+  sigs.forEach(s=>{
+    if(s.sev==='crit')threatCounts.crit=s.matches;
+    else if(s.sev==='high')threatCounts.high+=0;
+    else if(s.sev==='med')threatCounts.med+=0;
+    else threatCounts.low+=0;
+  });
+  const vals={
+    crit:sigs.filter(s=>s.sev==='crit').reduce((a,s)=>a+s.matches,0),
+    high:sigs.filter(s=>s.sev==='high').reduce((a,s)=>a+s.matches,0),
+    med:sigs.filter(s=>s.sev==='med').reduce((a,s)=>a+s.matches,0),
+    low:sigs.filter(s=>s.sev==='low').reduce((a,s)=>a+s.matches,0),
+  };
+  const total=Math.max(Object.values(vals).reduce((a,b)=>a+b,0),1);
+  document.getElementById('threat-breakdown').innerHTML=[
+    ['critical',vals.crit,'s-crit','red'],
+    ['high',vals.high,'s-high','amber'],
+    ['medium',vals.med,'s-med','blue'],
+    ['low',vals.low,'s-low','green'],
+  ].map(([l,v,cls,col])=>`
+    <div style="display:flex;align-items:center;gap:8px;font-size:11px">
+      <span class="sev ${cls}" style="width:52px;text-align:center">${l}</span>
+      <div style="flex:1;background:var(--bg3);border-radius:2px;height:6px;overflow:hidden">
+        <div class="bar-fill ${col}" style="width:${Math.round(v/total*100)}%"></div>
+      </div>
+      <span style="color:var(--text3);min-width:22px;text-align:right">${v}</span>
+    </div>`).join('');
+}
+
+function setMode(m){
+  document.getElementById('ips-mode').checked=(m==='ips');
+}
+
+function updateFooter(){
+  document.getElementById('footer-rule-count').textContent=rules.filter(r=>r.enabled).length+' rules loaded';
+}
+
+setInterval(()=>{document.getElementById('footer-time').textContent=new Date().toLocaleTimeString();},1000);
+setInterval(()=>{const n=Math.floor(Math.random()*3)+1;for(let i=0;i<n;i++)addEvent();},900);
+
+renderRules();
+renderSigs();
+updateBreakdown();
+updateFooter();
+</script>
+</body>
+</html>
